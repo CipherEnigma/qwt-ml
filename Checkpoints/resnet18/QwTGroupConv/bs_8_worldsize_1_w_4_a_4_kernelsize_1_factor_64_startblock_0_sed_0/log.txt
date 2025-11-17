@@ -1,0 +1,68 @@
+Training with a single process on 1 GPUs.
+Namespace(model='resnet18', data_dir='/content/QwT/imagenet1k', w_bits=4, a_bits=4, start_block=0, kernel_size=1, factor=64, batch_size=8, num_workers=2, seed=0, local_rank=0, drop_path=0.0, num_classes=1000, distributed=False, device='cuda:0', world_size=1, rank=0, log_dir='checkpoint/resnet18/QwTGroupConv/bs_8_worldsize_1_w_4_a_4_kernelsize_1_factor_64_startblock_0_sed_0', log_file='checkpoint/resnet18/QwTGroupConv/bs_8_worldsize_1_w_4_a_4_kernelsize_1_factor_64_startblock_0_sed_0/log.txt')
+dataset mean : (0.485, 0.456, 0.406) & std : (0.229, 0.224, 0.225)
+len of train_set : 80000    train_transform : Compose(
+    RandomResizedCropAndInterpolation(size=(224, 224), scale=(0.08, 1.0), ratio=(0.75, 1.3333), interpolation=PIL.Image.BICUBIC)
+    RandomHorizontalFlip(p=0.5)
+    <timm.data.auto_augment.RandAugment object at 0x13452a116b70>
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+len of eval_set : 20001    eval_transform : Compose(
+    Resize(size=256, interpolation=bicubic, max_size=None, antialias=True)
+    CenterCrop(size=(224, 224))
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+sampler : None      shuffle : True
+sampler : None      shuffle : False
+local_rank : 0 calib_data shape : torch.Size([8, 3, 224, 224]) value : tensor([-1.8782, -1.8610, -1.8439, -1.8268, -1.7925], device='cuda:0')
+Building model ...
+Performing initial quantization ...
+FP32 model size is 46.758
+Percentile model size is 6.143
+Test  Smples : 20001    Acc@1: 65.6767
+FP32 model   eval_acc: 65.68
+Test  Smples : 20001    Acc@1: 52.9974
+Percentile   eval_acc: 53.00
+start to generate compensation model
+block : 0      abs : 0.061847      r2 : 0.139
+block 0 using linear init
+block : 1      abs : 0.048461      r2 : 0.188
+block 1 using linear init
+block : 2      abs : 0.025150      r2 : 0.172
+block 2 using linear init
+block : 3      abs : 0.022314      r2 : 0.087
+block 3 using linear init
+block : 4      abs : 0.015541      r2 : 0.076
+block 4 using linear init
+block : 5      abs : 0.012266      r2 : 0.039
+block 5 using linear init
+block : 6      abs : 0.010362      r2 : 0.003
+block 6 using linear init
+block : 7      abs : 0.197822      r2 : 0.044
+block 7 using linear init
+QwT model size is 6.396
+module : conv1, input_quant : True, weight_quant : True
+module : layer1.0.block.conv1, input_quant : True, weight_quant : True
+module : layer1.0.block.conv2, input_quant : True, weight_quant : True
+module : layer1.1.block.conv1, input_quant : True, weight_quant : True
+module : layer1.1.block.conv2, input_quant : True, weight_quant : True
+module : layer2.0.block.conv1, input_quant : True, weight_quant : True
+module : layer2.0.block.conv2, input_quant : True, weight_quant : True
+module : layer2.0.block.downsample.0, input_quant : True, weight_quant : True
+module : layer2.1.block.conv1, input_quant : True, weight_quant : True
+module : layer2.1.block.conv2, input_quant : True, weight_quant : True
+module : layer3.0.block.conv1, input_quant : True, weight_quant : True
+module : layer3.0.block.conv2, input_quant : True, weight_quant : True
+module : layer3.0.block.downsample.0, input_quant : True, weight_quant : True
+module : layer3.1.block.conv1, input_quant : True, weight_quant : True
+module : layer3.1.block.conv2, input_quant : True, weight_quant : True
+module : layer4.0.block.conv1, input_quant : True, weight_quant : True
+module : layer4.0.block.conv2, input_quant : True, weight_quant : True
+module : layer4.0.block.downsample.0, input_quant : True, weight_quant : True
+module : layer4.1.block.conv1, input_quant : True, weight_quant : True
+module : layer4.1.block.conv2, input_quant : True, weight_quant : True
+module : fc, input_quant : True, weight_quant : True
+Test  Smples : 20001    Acc@1: 61.9419
+Percentile + QwT   eval_acc: 61.94

@@ -1,0 +1,30 @@
+Training with a single process on 1 GPUs.
+Namespace(model='resnet50', data_dir='/content/QwT/imagenet1k', w_bits=4, a_bits=4, start_block=0, kernel_size=1, factor=64, batch_size=8, num_workers=2, seed=0, local_rank=0, drop_path=0.0, num_classes=1000, distributed=False, device='cuda:0', world_size=1, rank=0, log_dir='checkpoint/resnet50/QwTGroupConv/bs_8_worldsize_1_w_4_a_4_kernelsize_1_factor_64_startblock_0_sed_0', log_file='checkpoint/resnet50/QwTGroupConv/bs_8_worldsize_1_w_4_a_4_kernelsize_1_factor_64_startblock_0_sed_0/log.txt')
+dataset mean : (0.485, 0.456, 0.406) & std : (0.229, 0.224, 0.225)
+len of train_set : 80000    train_transform : Compose(
+    RandomResizedCropAndInterpolation(size=(224, 224), scale=(0.08, 1.0), ratio=(0.75, 1.3333), interpolation=PIL.Image.BICUBIC)
+    RandomHorizontalFlip(p=0.5)
+    <timm.data.auto_augment.RandAugment object at 0x12db6e025370>
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+len of eval_set : 20001    eval_transform : Compose(
+    Resize(size=256, interpolation=bicubic, max_size=None, antialias=True)
+    CenterCrop(size=(224, 224))
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+sampler : None      shuffle : True
+sampler : None      shuffle : False
+local_rank : 0 calib_data shape : torch.Size([8, 3, 224, 224]) value : tensor([-1.8782, -1.8610, -1.8439, -1.8268, -1.7925], device='cuda:0')
+Building model ...
+Performing initial quantization ...
+FP32 model size is 102.228
+Percentile model size is 13.997
+Test  Smples : 20001    Acc@1: 66.6317
+FP32 model   eval_acc: 66.63
+Test  Smples : 20001    Acc@1: 61.2569
+Percentile   eval_acc: 61.26
+start to generate compensation model
+block : 0      abs : 0.021457      r2 : 0.239
+block 0 using linear init

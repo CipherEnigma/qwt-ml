@@ -1,0 +1,3 @@
+Training with a single process on 1 GPUs.
+Namespace(model='deit_tiny', data_dir='/opt/Dataset/ImageNet', w_bits=4, a_bits=4, start_block=0, batch_size=32, num_workers=4, seed=0, local_rank=0, drop_path=0.0, num_classes=1000, distributed=False, device='cuda:0', world_size=1, rank=0, log_dir='checkpoint/deit_tiny/QwT/bs_32_worldsize_1_w_4_a_4_startblock_0_sed_0', log_file='checkpoint/deit_tiny/QwT/bs_32_worldsize_1_w_4_a_4_startblock_0_sed_0/log.txt')
+dataset mean : (0.485, 0.456, 0.406) & std : (0.229, 0.224, 0.225)

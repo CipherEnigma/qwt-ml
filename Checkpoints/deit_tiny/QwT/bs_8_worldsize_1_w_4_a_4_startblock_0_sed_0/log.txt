@@ -1,0 +1,65 @@
+Training with a single process on 1 GPUs.
+Namespace(model='deit_tiny', data_dir='/content/QwT/imagenet1k', w_bits=4, a_bits=4, start_block=0, batch_size=8, num_workers=4, seed=0, local_rank=0, drop_path=0.0, num_classes=1000, distributed=False, device='cuda:0', world_size=1, rank=0, log_dir='checkpoint/deit_tiny/QwT/bs_8_worldsize_1_w_4_a_4_startblock_0_sed_0', log_file='checkpoint/deit_tiny/QwT/bs_8_worldsize_1_w_4_a_4_startblock_0_sed_0/log.txt')
+dataset mean : (0.485, 0.456, 0.406) & std : (0.229, 0.224, 0.225)
+len of train_set : 80000    train_transform : Compose(
+    RandomResizedCropAndInterpolation(size=(224, 224), scale=(0.08, 1.0), ratio=(0.75, 1.3333), interpolation=PIL.Image.BICUBIC)
+    RandomHorizontalFlip(p=0.5)
+    <timm.data.auto_augment.RandAugment object at 0x105cb56ed5b0>
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+len of eval_set : 20001    eval_transform : Compose(
+    Resize(size=256, interpolation=bicubic, max_size=None, antialias=True)
+    CenterCrop(size=(224, 224))
+    ToTensor()
+    Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+)
+sampler : None      shuffle : True
+sampler : None      shuffle : False
+local_rank : 0 calib_data shape : torch.Size([8, 3, 224, 224]) value : tensor([-1.8782, -1.8610, -1.8439, -1.8268, -1.7925], device='cuda:0')
+Building model ...
+Performing initial quantization ...
+Performing scale reparameterization ...
+RepQ-ViT model size is 3.272
+Test  Smples : 20001    Acc@1: 59.4320
+RepQ-ViT   eval_acc: 59.43
+start to generate compensation model
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 0      abs : 0.183925      r2 : 0.176
+block 0 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 1      abs : 0.096558      r2 : 0.227
+block 1 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 2      abs : 0.077648      r2 : 0.157
+block 2 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 3      abs : 0.071796      r2 : 0.162
+block 3 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 4      abs : 0.069517      r2 : 0.166
+block 4 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 5      abs : 0.076154      r2 : 0.147
+block 5 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 6      abs : 0.084378      r2 : 0.162
+block 6 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 7      abs : 0.087121      r2 : 0.145
+block 7 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 8      abs : 0.114437      r2 : 0.136
+block 8 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 9      abs : 0.104233      r2 : 0.109
+block 9 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 10      abs : 0.068332      r2 : 0.117
+block 10 using linear init
+the shape of X_add_one is torch.Size([100864, 193]), Y is torch.Size([100864, 192])
+block : 11      abs : 0.059849      r2 : 0.138
+block 11 using linear init
+RepQ-ViT + QwT model size is 4.166
+Test  Smples : 20001    Acc@1: 61.6419
+RepQ-ViT + QwT   eval_acc: 61.64
