@@ -157,72 +157,101 @@ class RandomExpansionBlock(nn.Module):
         return out
     
 
-def elm_regression(X, Y, expansion=8, kernel_size=1, groups=4, block_id=0):
+def elm_regression(X, Y, expansion=8, kernel_size=1, groups=4, block_id=0, chunk_size=32):
     """
-    Solves Y = W * [X, ReLU(W_rand * X)] + b
+    Memory-Safe ELM Solver: Accumulates XTX and XTY in chunks to avoid OOM.
     """
-    X = gather_tensor_from_multi_processes(X, args.world_size)
-    Y = gather_tensor_from_multi_processes(Y, args.world_size)
+    # Ensure inputs are on GPU
+    X = gather_tensor_from_multi_processes(X, args.world_size).cuda()
+    Y = gather_tensor_from_multi_processes(Y, args.world_size).cuda()
     
     B, C_X, H_X, W_X = X.size()
     _, C_Y, H_Y, W_Y = Y.size()
     
-    # --- 1. Global Scaling (Vital for Stability) ---
+    # --- 1. Global Scaling ---
+    # Must be calculated on the whole dataset once
     scale = X.abs().max() + 1e-6
-    X_norm = X / scale
     
-    # --- 2. Generate Random Weights ---
-    # We generate them here deterministically
+    # --- 2. Generate Random Weights (Fixed for all chunks) ---
     hidden_dim = C_X * expansion
-    
     rand_weight = torch.randn(hidden_dim, C_X, 1, 1, device=X.device)
     rand_bias = torch.randn(hidden_dim, device=X.device)
     
+    # Normalize
     rand_weight /= (C_X ** 0.5)
     rand_bias /= 1.0
     
-    # --- 3. Expand Features ---
-    rand_out = F.conv2d(X_norm, rand_weight, rand_bias, stride=1, padding=0)
-    rand_out = F.relu(rand_out)
-    
-    # Concatenate: [X, Random_ReLU]
-    X_expanded = torch.cat([X_norm, rand_out], dim=1)
-    C_X_expanded = X_expanded.shape[1]
-    
-    # --- 4. Standard QwT Solver ---
-    
+    # Determine Stride
     if (H_X == H_Y) and (W_X == W_Y):
         stride = 1
     elif (H_X // 2 == H_Y) and (W_X // 2 == W_Y):
         stride = 2
     else:
         stride = H_X // H_Y
-        
-    C_per_group_in = C_X_expanded // groups
-    C_per_group_out = C_Y // groups
 
+    # Calculate Group Sizes
+    # Note: The Input to the solver is (Original + Hidden)
+    C_expanded_total = C_X + hidden_dim
+    C_per_group_in = C_expanded_total // groups
+    C_per_group_out = C_Y // groups
+    
     unfold = nn.Unfold(kernel_size=kernel_size, stride=stride, padding=int(kernel_size//2))
 
     weights_list = []
     bias_list = []
-    
+
+    # --- 3. Iterate Groups ---
     for g in range(groups):
-        X_group = X_expanded[:, g * C_per_group_in : (g + 1) * C_per_group_in, :, :]
-        Y_group = Y[:, g * C_per_group_out : (g + 1) * C_per_group_out, :, :]
-
-        X_unfold_group = unfold(X_group) 
-        Y_flat_group = Y_group.view(B, C_per_group_out, -1)
-
-        X_batch_all = X_unfold_group.permute(0, 2, 1).reshape(-1, X_unfold_group.shape[1])
-        Y_batch_all = Y_flat_group.permute(0, 2, 1).reshape(-1, C_per_group_out)
-
-        X_with_bias = torch.cat([X_batch_all, torch.ones(X_batch_all.shape[0], 1).cuda()], dim=1)
-
-        # Regularization prevents overfitting to the random noise
+        # Initialize Accumulators for this group
+        # Size of X_bias is [L * C_per_group + 1]
+        # We find the dimension by running a dummy pass or calculation
+        # Calc feature dim: kernel_size*kernel_size * C_per_group_in + 1
+        dim_w = (kernel_size * kernel_size * C_per_group_in) + 1
+        
+        XTX_sum = torch.zeros(dim_w, dim_w, device=X.device)
+        XTY_sum = torch.zeros(dim_w, C_per_group_out, device=X.device)
+        
+        # --- 4. Chunked Accumulation (The Fix) ---
+        for i in range(0, B, chunk_size):
+            # Slice Mini-Batch
+            X_chunk = X[i : i + chunk_size]
+            Y_chunk = Y[i : i + chunk_size]
+            current_B = X_chunk.size(0)
+            
+            # A. Expand Features (On the fly, for this chunk only)
+            X_norm_chunk = X_chunk / scale
+            rand_out = F.conv2d(X_norm_chunk, rand_weight, rand_bias, stride=1, padding=0)
+            rand_out = F.relu(rand_out)
+            X_expanded_chunk = torch.cat([X_norm_chunk, rand_out], dim=1)
+            
+            # B. Slice Group
+            X_group = X_expanded_chunk[:, g * C_per_group_in : (g + 1) * C_per_group_in, :, :]
+            Y_group = Y_chunk[:, g * C_per_group_out : (g + 1) * C_per_group_out, :, :]
+            
+            # C. Unfold & Flatten
+            X_unfold = unfold(X_group) 
+            # [Batch, Channels, Length] -> [Batch*Length, Channels]
+            X_flat = X_unfold.permute(0, 2, 1).reshape(-1, X_unfold.shape[1])
+            
+            Y_flat = Y_group.view(current_B, C_per_group_out, -1)
+            Y_flat = Y_flat.permute(0, 2, 1).reshape(-1, C_per_group_out)
+            
+            # D. Add Bias Term
+            X_with_bias = torch.cat([X_flat, torch.ones(X_flat.shape[0], 1, device=X.device)], dim=1)
+            
+            # E. Accumulate into Global Sums
+            # We assume the batch size fits in memory now
+            XTX_sum += X_with_bias.T @ X_with_bias
+            XTY_sum += X_with_bias.T @ Y_flat
+            
+            # Clean up immediate tensors
+            del X_expanded_chunk, X_group, X_unfold, X_flat, X_with_bias
+        
+        # --- 5. Solve (Using Accumulated Sums) ---
         regularization = 1e-1
-        XTX = X_with_bias.T @ X_with_bias
-        XTX_reg = XTX + regularization * torch.eye(XTX.shape[0]).cuda()
-        W_solved = torch.inverse(XTX_reg) @ X_with_bias.T @ Y_batch_all
+        XTX_reg = XTX_sum + regularization * torch.eye(XTX_sum.shape[0], device=X.device)
+        
+        W_solved = torch.inverse(XTX_reg) @ XTY_sum
 
         M_group = W_solved[:-1, :].T
         b_group = W_solved[-1, :]
@@ -230,20 +259,40 @@ def elm_regression(X, Y, expansion=8, kernel_size=1, groups=4, block_id=0):
         weights_list.append(M_group)
         bias_list.append(b_group)
 
-    M_reshaped = torch.cat(weights_list, dim=0).view(C_Y, C_X_expanded // groups, kernel_size, kernel_size)
+    # Reconstruct Full Weights
+    M_reshaped = torch.cat(weights_list, dim=0).view(C_Y, C_expanded_total // groups, kernel_size, kernel_size)
     b_final = torch.cat(bias_list, dim=0)
 
-    # R2 Calc
-    Y_pred = F.conv2d(X_expanded, M_reshaped, b_final, stride=stride, padding=kernel_size//2, groups=groups)
-    ss_tot = torch.sum((Y - Y.mean(dim=0)).pow(2))
-    ss_res = torch.sum((Y - Y_pred).pow(2))
-    r2_score = 1 - ss_res / ss_tot
+    # R2 Calc (Requires one more forward pass, but we can skip or chunk it if needed)
+    # For OOM safety, let's do a quick chunked R2 or just return 0 if strict on memory.
+    # Here is a simplified memory-safe R2 check (Just checks error variance)
+    with torch.no_grad():
+        # Re-run forward on chunks to get Y_pred
+        ss_res = 0
+        ss_tot = 0
+        Y_mean = Y.mean(dim=0)
+        
+        for i in range(0, B, chunk_size):
+            X_chunk = X[i : i + chunk_size]
+            Y_chunk = Y[i : i + chunk_size]
+            
+            X_norm_chunk = X_chunk / scale
+            rand_out = F.conv2d(X_norm_chunk, rand_weight, rand_bias, stride=1, padding=0)
+            rand_out = F.relu(rand_out)
+            X_expanded_chunk = torch.cat([X_norm_chunk, rand_out], dim=1)
+            
+            Y_pred_chunk = F.conv2d(X_expanded_chunk, M_reshaped, b_final, stride=stride, padding=kernel_size//2, groups=groups)
+            
+            ss_res += torch.sum((Y_chunk - Y_pred_chunk).pow(2))
+            ss_tot += torch.sum((Y_chunk - Y_mean).pow(2))
+            del X_expanded_chunk
+            
+        r2_score = 1 - ss_res / ss_tot
 
-    _write('ELM_Block : {}      r2 : {:.3f}'.format(block_id, r2_score))
+    if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        print(f'ELM_Block : {block_id}      r2 : {r2_score:.3f}')
 
-    # RETURN EVERYTHING NEEDED FOR THE BLOCK
     return M_reshaped, b_final, r2_score, rand_weight, rand_bias, scale
-
 
 class PolynomialCompensationBlock(nn.Module):
     def __init__(self, in_channels, out_channels, groups, degree=2, stride=1, W_init=None, b_init=None, scale=1.0):
@@ -431,7 +480,9 @@ def generate_compensation_model_elm(q_model, train_loader, args):
                     return self.block(x) + self.correction(x)
 
             current_sup_layer[layer_id] = HybridWrapper(current_sup_layer[layer_id], new_block)
-            
+            del output_t_, output_full_precision, output_quant, Y_diff
+            del W, b, rand_w, rand_b
+            torch.cuda.empty_cache()
             # Update Outputs
             q_model.cuda()
             qwerty_layer = current_sup_layer[layer_id]
