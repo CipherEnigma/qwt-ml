@@ -1,0 +1,8 @@
+matplotlib>=3.3.0
+mmpycocotools
+numpy>=1.20.0,<2.0.0
+six
+terminaltables
+timm>=0.6.0
+torch>=1.13.0
+torchvision>=0.14.0

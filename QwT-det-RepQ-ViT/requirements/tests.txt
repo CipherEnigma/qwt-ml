@@ -1,0 +1,13 @@
+asynctest; python_version<'3.8'
+codecov
+flake8
+interrogate
+isort>=5.10.0
+# Note: used for kwarray.group_items, this may be ported to mmcv in the future.
+kwarray
+onnx>=1.12.0
+onnxruntime>=1.13.0
+pytest>=7.0.0
+ubelt
+xdoctest>=0.10.0
+yapf
